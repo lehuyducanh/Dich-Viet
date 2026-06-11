@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+
+# Generated media (keep test fixtures explicit if ever needed)
+*.mid
+*.midi
+*.mp4
+*.wav
+*.mp3
+!tests/fixtures/*
+
+# Model caches
+.cache/
+*.onnx
+
+# Environment
+.env
