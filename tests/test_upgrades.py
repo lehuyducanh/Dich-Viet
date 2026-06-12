@@ -171,3 +171,31 @@ def test_synth_engine_lofi_master_chain(tmp_path, library):
     wav_path = tmp_path / "lofi.wav"
     render_wav(produced, library.get("lofi").sound_design, wav_path)  # vinyl + master LP path
     assert wav_path.stat().st_size > 44100  # > ~0.5s of 16-bit stereo
+
+
+# --- duration fitting ---------------------------------------------------------------
+
+def test_fit_duration_scales_arrangement(library):
+    from music_producer.arrangement import fit_duration
+    from examples.make_happy_birthday import build
+
+    analysis = analyze(build())
+    plan = RuleBasedBrain().make_plan(analysis, "edm", library)
+    fit_duration(plan, 180.0, 4.0)
+    # 180s at 128 BPM in 4/4 = exactly 96 bars
+    assert plan.total_bars == 96
+    assert all(s.bars >= 2 and s.bars % 2 == 0 for s in plan.sections)
+    seconds = plan.total_bars * 4 / plan.target_tempo * 60
+    assert abs(seconds - 180.0) < 4.0
+
+
+def test_fit_duration_shrinks_too(library):
+    from music_producer.arrangement import fit_duration
+    from examples.make_happy_birthday import build
+
+    analysis = analyze(build())
+    plan = RuleBasedBrain().make_plan(analysis, "edm", library)
+    fit_duration(plan, 60.0, 4.0)
+    seconds = plan.total_bars * 4 / plan.target_tempo * 60
+    assert abs(seconds - 60.0) < 4.0
+    assert all(s.bars >= 2 for s in plan.sections)

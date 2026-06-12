@@ -78,6 +78,29 @@ def arrange(analysis: SongAnalysis, plan: ProductionPlan, library: TemplateLibra
     return song
 
 
+def fit_duration(plan: ProductionPlan, seconds: float, beats_per_bar: float = 4.0) -> ProductionPlan:
+    """Stretch/shrink the arrangement so the track lasts ~`seconds` at the
+    plan's tempo. Sections scale proportionally in 2-bar steps; rounding
+    drift lands on the longest sections (the drops), like a real edit."""
+    target_bars = max(8, round(seconds * plan.target_tempo / 60.0 / beats_per_bar / 2) * 2)
+    if not plan.sections or plan.total_bars == 0:
+        return plan
+    ratio = target_bars / plan.total_bars
+    for s in plan.sections:
+        s.bars = max(2, round(s.bars * ratio / 2) * 2)
+
+    for _ in range(64):  # settle rounding drift, 2 bars at a time
+        diff = target_bars - plan.total_bars
+        if diff == 0:
+            break
+        step = 2 if diff > 0 else -2
+        for s in sorted(plan.sections, key=lambda s: -s.bars):
+            if s.bars + step >= 2:
+                s.bars += step
+                break
+    return plan
+
+
 def describe(plan: ProductionPlan, library: TemplateLibrary) -> str:
     """Human-readable summary of the plan, printed by the CLI."""
     template = library.get(plan.template)

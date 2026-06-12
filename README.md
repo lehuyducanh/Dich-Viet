@@ -46,6 +46,21 @@ python -m music_producer remix input.mid -t "synthwave retro" --audio
 python -m music_producer remix input.mid -t "synthwave retro" --fluidsynth
 ```
 
+### Remix nhạc truyền thống (ví dụ: Happy Birthday → EDM 180 giây)
+
+```bash
+# 1. Tạo input từ bản nhạc gốc (melody + hợp âm cơ bản là đủ)
+python examples/make_happy_birthday.py          # -> examples/happy_birthday.mid
+
+# 2. Remix với theme + thời lượng mục tiêu
+python -m music_producer remix examples/happy_birthday.mid \
+    --theme "EDM sôi động cho tiệc sinh nhật, drop thật mạnh, vui tươi" \
+    --duration 180 \
+    -o hbd_edm.mid --audio                      # -> hbd_edm.mid + hbd_edm.wav (~180s)
+```
+
+`--duration` co giãn arrangement theo đúng thời lượng (giữ tỉ lệ intro/build/drop, làm tròn theo 2 bars, phần dư dồn vào drop — như một bản edit thật). Với bản nhạc gốc bất kỳ: bạn chỉ cần file MIDI chứa melody + hợp âm (tự ký âm trong MuseScore/DAW, hoặc tải MIDI có sẵn), hệ thống lo phần còn lại — kể cả bài gốc nhịp 3/4 thì nên ký âm lại sang 4/4 trước khi remix sang thể loại 4/4 như EDM.
+
 ### Python API
 
 ```python

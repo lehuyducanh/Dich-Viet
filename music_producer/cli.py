@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from . import analyze, arrange, describe, get_brain, load, render_audio, render_midi
+from .arrangement import fit_duration
 from .template_library import TemplateLibrary
 
 
@@ -29,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     p_remix.add_argument("--output", "-o", default=None, help="Output MIDI path")
     p_remix.add_argument("--template", default=None, help="Force a specific template")
     p_remix.add_argument("--tempo", type=float, default=None, help="Force output BPM")
+    p_remix.add_argument("--duration", type=float, default=None,
+                         help="Target track length in seconds (arrangement is scaled to fit)")
     p_remix.add_argument("--no-llm", action="store_true",
                          help="Skip the LLM and use the rule-based planner")
     p_remix.add_argument("--audio", action="store_true",
@@ -73,11 +76,17 @@ def main(argv: list[str] | None = None) -> int:
     brain = get_brain(use_llm=not args.no_llm)
     brain_kind = type(brain).__name__
     print(f"[2/4] Producer brain: {brain_kind}")
-    plan = brain.make_plan(analysis, args.theme, library)
+    theme = args.theme
+    if args.duration:
+        theme += f" (target track length: about {args.duration:.0f} seconds)"
+    plan = brain.make_plan(analysis, theme, library)
     if args.template:
         plan.template = library.get(args.template).name
     if args.tempo:
         plan.target_tempo = library.get(plan.template).clamp_tempo(args.tempo)
+    if args.duration:
+        beats_per_bar = analysis.time_signature[0] * 4.0 / analysis.time_signature[1]
+        fit_duration(plan, args.duration, beats_per_bar)
     print("[3/4] Production plan:")
     print(describe(plan, library))
 
