@@ -1,8 +1,9 @@
 """Synthesia-style falling-notes renderer.
 
-Reference look: black background, 88-key keyboard along the bottom, rounded
-note bars falling toward the keyboard (one color per track), keys lighting up
-with a soft glow when a note reaches the hit line.
+Reference look: dark gradient background, 88-key keyboard along the bottom,
+rounded gradient note bars falling toward the keyboard (one color per track),
+keys lighting up with light beams, an animated glow, and sparks at the hit
+line while notes sound.
 """
 
 from __future__ import annotations
@@ -16,6 +17,15 @@ import pretty_midi
 from PIL import Image, ImageDraw
 
 from .. import config
+from .effects import (
+    BarCache,
+    ParticleSystem,
+    darken,
+    lighten,
+    make_background,
+    make_light_beam,
+    make_radial_glow,
+)
 from .geometry import HIGHEST_PITCH, LOWEST_PITCH, KeyboardLayout, is_black
 from .video import FrameWriter, mux_audio
 
@@ -32,10 +42,6 @@ class TimedNote:
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
     c = color.lstrip("#")
     return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
-
-
-def _lighten(rgb: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
-    return tuple(int(v + (255 - v) * amount) for v in rgb)  # type: ignore[return-value]
 
 
 def load_notes(midi_path: Path, lead_in_s: float) -> tuple[list[TimedNote], float]:
@@ -75,11 +81,13 @@ class PianoRenderer:
         fps: int,
         lookahead_s: float,
         palette: list[str],
+        effects: bool = True,
     ):
         self.width = width
         self.height = height
         self.fps = fps
         self.lookahead_s = lookahead_s
+        self.effects = effects
         self.colors = [_hex_to_rgb(c) for c in palette]
 
         kb_height = height * config.KEYBOARD_HEIGHT_FRAC
@@ -87,54 +95,86 @@ class PianoRenderer:
         self.layout = KeyboardLayout(width=width, kb_top=self.kb_top, kb_height=kb_height)
         self.fall_speed = self.kb_top / lookahead_s  # px per second
 
+        self._background = make_background(width, height).convert("RGBA")
         self._keyboard_base = self._render_keyboard_base()
-        self._glow_sprites = [self._render_glow(c) for c in self.colors]
+        self._kb_mask = self._render_keyboard_mask()
+        self._bars = BarCache()
+        self._particles = ParticleSystem()
+
+        glow_size = max(8, int(self.layout.white_w * 5))
+        self._glow_sprites = [make_radial_glow(c, glow_size, peak_alpha=160) for c in self.colors]
+        self._hit_sprites = [
+            make_radial_glow(c, int(glow_size * 1.7), peak_alpha=210) for c in self.colors
+        ]
+        beam_h = int(self.kb_top * 0.30)
+        self._beam_sprites = [
+            make_light_beam(c, int(self.layout.white_w * 1.6), beam_h) for c in self.colors
+        ]
 
     # --- pre-rendered layers ---
 
     def _render_keyboard_base(self) -> Image.Image:
         img = Image.new("RGB", (self.width, self.height), (0, 0, 0))
         draw = ImageDraw.Draw(img)
-        # White keys first, then black keys on top.
+        kb_h = self.height - self.kb_top
+        # White keys with a subtle vertical gradient (darker near the hit line).
         for pitch in range(LOWEST_PITCH, HIGHEST_PITCH + 1):
             if is_black(pitch):
                 continue
             r = self.layout.key_rect(pitch)
-            draw.rectangle(
-                [r.x, r.y, r.x + r.w - 1, r.y + r.h],
-                fill=(230, 230, 228),
-                outline=(40, 40, 40),
-            )
+            steps = 12
+            for i in range(steps):
+                shade = 195 + int(48 * i / (steps - 1))
+                y0 = r.y + kb_h * i / steps
+                y1 = r.y + kb_h * (i + 1) / steps
+                draw.rectangle([r.x + 1, y0, r.x + r.w - 1, y1], fill=(shade, shade, shade - 3))
+            draw.line([r.x, r.y, r.x, self.height], fill=(35, 35, 38))
+        # Black keys with a soft top highlight.
         for pitch in range(LOWEST_PITCH, HIGHEST_PITCH + 1):
             if not is_black(pitch):
                 continue
             r = self.layout.key_rect(pitch)
-            draw.rectangle([r.x, r.y, r.x + r.w, r.y + r.h], fill=(18, 18, 20))
-        # Thin separator above the keyboard (the hit line).
-        draw.rectangle([0, self.kb_top - 2, self.width, self.kb_top], fill=(60, 60, 70))
+            draw.rounded_rectangle(
+                [r.x, r.y, r.x + r.w, r.y + r.h], radius=2, fill=(16, 16, 19)
+            )
+            draw.line([r.x + 1, r.y + 1, r.x + r.w - 1, r.y + 1], fill=(70, 70, 78))
+        # Hit line: thin dark separator with a faint warm glow strip.
+        draw.rectangle([0, self.kb_top - 3, self.width, self.kb_top], fill=(28, 28, 40))
+        draw.line([0, self.kb_top - 3, self.width, self.kb_top - 3], fill=(95, 95, 130))
         return img
 
-    def _render_glow(self, rgb: tuple[int, int, int]) -> Image.Image:
-        """Radial gradient sprite composited where a note meets the keyboard."""
-        size = max(8, int(self.layout.white_w * 4))
-        arr = np.zeros((size, size, 4), dtype=np.uint8)
-        yy, xx = np.mgrid[0:size, 0:size]
-        center = (size - 1) / 2
-        dist = np.sqrt((xx - center) ** 2 + (yy - center) ** 2) / center
-        alpha = np.clip(1.0 - dist, 0.0, 1.0) ** 2 * 110
-        arr[..., 0], arr[..., 1], arr[..., 2] = rgb
-        arr[..., 3] = alpha.astype(np.uint8)
-        sprite = Image.fromarray(arr, "RGBA")
-        return sprite
+    def _render_keyboard_mask(self) -> Image.Image:
+        mask = Image.new("L", (self.width, self.height), 0)
+        ImageDraw.Draw(mask).rectangle(
+            [0, self.kb_top - 3, self.width, self.height], fill=255
+        )
+        return mask
 
     def _track_color(self, track: int) -> tuple[int, int, int]:
         return self.colors[track % len(self.colors)]
 
+    def _sprite(self, sprites: list[Image.Image], track: int) -> Image.Image:
+        return sprites[track % len(sprites)]
+
+    def _composite(self, overlay: Image.Image, sprite: Image.Image, x: int, y: int) -> None:
+        """alpha_composite a sprite at (x, y), cropping at frame edges.
+
+        (paste-with-mask would multiply the sprite's alpha into itself and
+        wash translucent effects out; alpha_composite blends correctly.)
+        """
+        crop_x = max(0, -x)
+        crop_y = max(0, -y)
+        if crop_x or crop_y:
+            sprite = sprite.crop((crop_x, crop_y, sprite.width, sprite.height))
+            x, y = max(0, x), max(0, y)
+        if x >= self.width or y >= self.height or sprite.width == 0 or sprite.height == 0:
+            return
+        overlay.alpha_composite(sprite, (x, y))
+
     # --- per-frame drawing ---
 
     def draw_frame(self, t: float, notes: list[TimedNote], window_start: int) -> Image.Image:
-        frame = Image.new("RGB", (self.width, self.height), (5, 5, 8))
-        draw = ImageDraw.Draw(frame)
+        frame = self._background.copy()
 
         active: list[TimedNote] = []
         horizon = t + self.lookahead_s
@@ -144,58 +184,80 @@ class PianoRenderer:
             i += 1
             if n.end < t:
                 continue
+            playing = n.start <= t <= n.end
+            if playing:
+                active.append(n)
             x, w = self.layout.note_column(n.pitch)
             y_bottom = self.kb_top - (n.start - t) * self.fall_speed
             bar_h = (n.end - n.start) * self.fall_speed
             y_top = y_bottom - bar_h
-            if y_bottom <= 0 or y_top >= self.kb_top:
-                if n.start <= t <= n.end:
-                    active.append(n)
-                continue
-            color = self._track_color(n.track)
-            playing = n.start <= t <= n.end
-            if playing:
-                active.append(n)
-                color = _lighten(color, 0.25)
             y0 = max(y_top, -20.0)
             y1 = min(y_bottom, self.kb_top)
-            if y1 - y0 < 1 or w < 1:
+            w_i, h_i = int(round(w)), int(round(y1 - y0))
+            if h_i < 2 or w_i < 2 or y_bottom <= 0 or y_top >= self.kb_top:
                 continue
-            # Pillow rejects radii larger than half of either dimension.
-            radius = max(0, min(w * 0.3, 8, (y1 - y0) / 2 - 1, w / 2 - 1))
-            draw.rounded_rectangle(
-                [x, y0, x + w, y1],
-                radius=radius,
-                fill=color,
-                outline=_lighten(color, 0.5),
-                width=1,
-            )
+            radius = min(w_i * 0.3, 8.0)
+            bar = self._bars.get(self._track_color(n.track), w_i, h_i, radius, playing)
+            frame.paste(bar, (int(round(x)), int(round(y0))), bar)
 
-        # Keyboard on top of the bars.
-        frame.paste(self._keyboard_base, (0, 0), self._keyboard_mask())
+        # Keyboard over the bars.
+        frame.paste(self._keyboard_base, (0, 0), self._kb_mask)
 
-        # Pressed keys + glow for active notes.
+        # Pressed keys.
+        draw = ImageDraw.Draw(frame)
         for n in active:
             r = self.layout.key_rect(n.pitch)
             color = self._track_color(n.track)
-            fill = color if not r.is_black else tuple(int(v * 0.8) for v in color)
-            draw = ImageDraw.Draw(frame)
-            draw.rectangle([r.x, r.y, r.x + r.w, r.y + r.h], fill=fill)
-            glow = self._glow_sprites[n.track % len(self._glow_sprites)]
-            gx = int(r.x + r.w / 2 - glow.width / 2)
-            gy = int(self.kb_top - glow.height / 2)
-            frame.paste(glow, (gx, gy), glow)
-
-        return frame
-
-    def _keyboard_mask(self) -> Image.Image:
-        if not hasattr(self, "_kb_mask"):
-            mask = Image.new("L", (self.width, self.height), 0)
-            ImageDraw.Draw(mask).rectangle(
-                [0, self.kb_top - 2, self.width, self.height], fill=255
+            if r.is_black:
+                fill = darken(color, 0.75)
+            else:
+                fill = lighten(color, 0.15)
+            draw.rounded_rectangle(
+                [r.x + 1, r.y, r.x + r.w - 1, r.y + r.h],
+                radius=2,
+                fill=fill,
+                outline=darken(color, 0.6),
             )
-            self._kb_mask = mask
-        return self._kb_mask
+
+        if not self.effects:
+            return frame
+
+        # Effects overlay: beams, animated hit glow, particles.
+        overlay = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        for n in active:
+            r = self.layout.key_rect(n.pitch)
+            cx = r.x + r.w / 2
+            track = n.track
+
+            beam = self._sprite(self._beam_sprites, track)
+            self._composite(
+                overlay, beam, int(cx - beam.width / 2), int(self.kb_top - beam.height)
+            )
+
+            glow = self._sprite(self._glow_sprites, track)
+            self._composite(
+                overlay, glow, int(cx - glow.width / 2), int(self.kb_top - glow.height / 2)
+            )
+
+            # Brighter flash right after the note lands, fading over ~0.3 s.
+            age = t - n.start
+            if age < 0.3:
+                hit = self._sprite(self._hit_sprites, track).copy()
+                fade = 1.0 - age / 0.3
+                alpha = hit.getchannel("A").point(lambda a, f=fade: int(a * f))
+                hit.putalpha(alpha)
+                self._composite(
+                    overlay, hit, int(cx - hit.width / 2), int(self.kb_top - hit.height / 2)
+                )
+
+            intensity = n.velocity / 127.0
+            count = 3 if age < 0.12 else 1
+            self._particles.spawn(cx, self.kb_top - 4, self._track_color(track), intensity, count)
+
+        self._particles.update(1.0 / self.fps)
+        self._particles.draw(overlay)
+
+        return Image.alpha_composite(frame, overlay)
 
 
 def render_video(
@@ -208,6 +270,7 @@ def render_video(
     palette: list[str] | None = None,
     with_audio: bool = True,
     soundfont: Path | None = None,
+    effects: bool = True,
 ) -> Path:
     """Render a MIDI file to an mp4. Returns the output path."""
     midi_path = Path(midi_path)
@@ -218,7 +281,7 @@ def render_video(
     height -= height % 2
 
     notes, duration = load_notes(midi_path, lead_in_s=config.LEAD_IN_S)
-    renderer = PianoRenderer(width, height, fps, lookahead_s, palette)
+    renderer = PianoRenderer(width, height, fps, lookahead_s, palette, effects=effects)
     total_frames = int(duration * fps)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -234,7 +297,7 @@ def render_video(
                 while window_start < len(notes) and notes[window_start].end < t:
                     window_start += 1
                 frame = renderer.draw_frame(t, notes, window_start)
-                writer.write(np.asarray(frame, dtype=np.uint8).tobytes())
+                writer.write(np.asarray(frame.convert("RGB"), dtype=np.uint8).tobytes())
 
         if with_audio:
             from .audio import synthesize

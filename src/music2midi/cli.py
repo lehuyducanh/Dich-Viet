@@ -63,6 +63,9 @@ def visualize(
     ),
     soundfont: Optional[Path] = typer.Option(None, help="SoundFont (.sf2) for audio synthesis."),
     no_audio: bool = typer.Option(False, "--no-audio", help="Render a silent video."),
+    no_effects: bool = typer.Option(
+        False, "--no-effects", help="Disable beams/glow/particles for faster rendering."
+    ),
 ) -> None:
     """Render a MIDI file as a Synthesia-style falling-notes piano video."""
     from .visualize.renderer import render_video
@@ -86,6 +89,7 @@ def visualize(
         palette=palette,
         with_audio=not no_audio,
         soundfont=soundfont,
+        effects=not no_effects,
     )
     typer.echo(f"Wrote video to {output}")
 
