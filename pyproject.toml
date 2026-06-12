@@ -25,6 +25,7 @@ transcribe = [
     "basic-pitch>=0.4",
     "onnxruntime>=1.17",
     "librosa>=0.10",
+    "torchcodec>=0.1",  # torchaudio>=2.9 delegates audio IO to torchcodec
 ]
 dev = [
     "pytest>=8",

@@ -1,8 +1,15 @@
-"""Source separation with Demucs (htdemucs, CPU)."""
+"""Source separation with Demucs (htdemucs, CPU).
+
+Uses the `demucs.separate.main()` entry point — the stable API in the demucs
+4.0.x releases on PyPI (`demucs.api` only exists on the unreleased main
+branch).
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+STEM_ORDER = ("vocals", "drums", "bass", "other")
 
 
 def separate_stems(audio_path: Path, out_dir: Path, model: str = "htdemucs") -> dict[str, Path]:
@@ -10,15 +17,16 @@ def separate_stems(audio_path: Path, out_dir: Path, model: str = "htdemucs") -> 
 
     First run downloads the ~80 MB htdemucs checkpoint to ~/.cache.
     """
-    import demucs.api
+    import demucs.separate
 
-    separator = demucs.api.Separator(model=model, device="cpu", progress=True)
-    _, stems = separator.separate_audio_file(str(audio_path))
-
-    paths: dict[str, Path] = {}
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name, tensor in stems.items():
-        wav_path = out_dir / f"{name}.wav"
-        demucs.api.save_audio(tensor, str(wav_path), samplerate=separator.samplerate)
-        paths[name] = wav_path
+    demucs.separate.main(
+        ["-n", model, "-d", "cpu", "-o", str(out_dir), str(audio_path)]
+    )
+
+    stem_dir = out_dir / model / audio_path.stem
+    paths = {name: stem_dir / f"{name}.wav" for name in STEM_ORDER}
+    missing = [name for name, p in paths.items() if not p.exists()]
+    if missing:
+        raise RuntimeError(f"Demucs did not produce expected stems: {missing} in {stem_dir}")
     return paths

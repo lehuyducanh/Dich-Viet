@@ -13,8 +13,16 @@ CLI tool ba-trong-một cho âm nhạc:
 pip install -e .
 
 # Thêm khả năng transcribe (nặng — cài torch CPU trước để tránh kéo bản CUDA ~2GB)
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchaudio torchcodec --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[transcribe]"
+```
+
+Lưu ý:
+- `torchcodec` cần thư viện FFmpeg hệ thống (`apt-get install ffmpeg`).
+- Nếu pip báo lỗi `install_layout` khi build sdist (setuptools bản Debian), thêm cờ `--use-pep517`.
+- Lần chạy transcribe đầu tiên sẽ tải checkpoint htdemucs (~80 MB) về `~/.cache`.
+
+```bash
 ```
 
 Yêu cầu Python >= 3.10 và < 3.12 (giới hạn của basic-pitch).
