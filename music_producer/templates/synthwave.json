@@ -1,0 +1,58 @@
+{
+  "name": "synthwave",
+  "display_name": "Synthwave / Retrowave",
+  "description": "100-110 BPM 80s retro: gated snare, pulsing 16th-note synth bass, lush analog pads, neon arps. Best for retro, cinematic, night-drive, nostalgic-but-energetic themes.",
+  "tempo_range": [100, 112],
+  "default_energy": 0.7,
+  "swing": 0.0,
+  "instruments": {
+    "bass": 38,
+    "pad": 90,
+    "arp": 81,
+    "melody": 80,
+    "lead": 81,
+    "fx": 96
+  },
+  "drum_patterns": {
+    "low": {
+      "kick": "x.......x.......",
+      "chh": "o...o...o...o...",
+      "shaker": "..s...s...s...s."
+    },
+    "mid": {
+      "kick": "x...x...x...x...",
+      "snare": "....x.......x...",
+      "chh": "o.o.o.o.o.o.o.o."
+    },
+    "high": {
+      "kick": "x...x...x...x...",
+      "snare": "....x.......x...",
+      "chh": "o.o.o.o.o.o.o.o.",
+      "ohh": "..............x.",
+      "tamb": "....o.......o..."
+    },
+    "build": {
+      "kick": "x...x...x...x...",
+      "snare": "....x...o.o.oooo",
+      "htom": "........o.o.....",
+      "mtom": "............oo..",
+      "ltom": "..............oo"
+    }
+  },
+  "bass_style": {
+    "low": "eighth_pump",
+    "mid": "sixteenth_pump",
+    "high": "sixteenth_pump",
+    "build": "sixteenth_pump"
+  },
+  "arp_style": "updown16",
+  "default_arrangement": [
+    {"section": "intro", "bars": 8, "energy": 0.35, "layers": ["drums", "pad", "arp"]},
+    {"section": "verse", "bars": 16, "energy": 0.6, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "build", "bars": 4, "energy": 0.7, "layers": ["drums", "bass", "pad", "arp"]},
+    {"section": "chorus", "bars": 16, "energy": 0.9, "layers": ["drums", "bass", "pad", "arp", "melody", "lead"]},
+    {"section": "breakdown", "bars": 8, "energy": 0.45, "layers": ["pad", "arp", "melody"]},
+    {"section": "chorus", "bars": 16, "energy": 0.95, "layers": ["drums", "bass", "pad", "arp", "melody", "lead"]},
+    {"section": "outro", "bars": 8, "energy": 0.3, "layers": ["drums", "pad", "arp"]}
+  ]
+}

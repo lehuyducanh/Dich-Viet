@@ -1,0 +1,56 @@
+{
+  "name": "lofi",
+  "display_name": "Lo-fi Chill Hop",
+  "description": "75-90 BPM laid-back lo-fi: dusty swung drums, mellow electric piano, soft fingered bass. Best for chill, study, relax, nostalgic, rainy-day themes.",
+  "tempo_range": [75, 90],
+  "default_energy": 0.45,
+  "swing": 0.45,
+  "instruments": {
+    "bass": 33,
+    "pad": 4,
+    "arp": 11,
+    "melody": 4,
+    "lead": 73,
+    "fx": 99
+  },
+  "drum_patterns": {
+    "low": {
+      "kick": "x.......x.......",
+      "chh": "s.s.s.s.s.s.s.s.",
+      "shaker": "..s...s...s...s."
+    },
+    "mid": {
+      "kick": "x.....x...x.....",
+      "snare": "....s.......s...",
+      "chh": "o.s.o.s.o.s.o.s.",
+      "shaker": "..s...s...s...s."
+    },
+    "high": {
+      "kick": "x.....x...x....x",
+      "snare": "....o.......o...",
+      "chh": "o.s.o.s.o.s.o.so",
+      "ohh": "..............s.",
+      "shaker": "s.s.s.s.s.s.s.s."
+    },
+    "build": {
+      "kick": "x.....x...x.....",
+      "snare": "....s....s..s.ss",
+      "chh": "o.s.o.s.o.s.o.s."
+    }
+  },
+  "bass_style": {
+    "low": "sustained_roots",
+    "mid": "lazy_roots",
+    "high": "lazy_roots",
+    "build": "lazy_roots"
+  },
+  "arp_style": "up8",
+  "default_arrangement": [
+    {"section": "intro", "bars": 4, "energy": 0.3, "layers": ["pad", "fx"]},
+    {"section": "verse", "bars": 16, "energy": 0.5, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "chorus", "bars": 8, "energy": 0.65, "layers": ["drums", "bass", "pad", "melody", "arp"]},
+    {"section": "verse", "bars": 16, "energy": 0.5, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "chorus", "bars": 8, "energy": 0.65, "layers": ["drums", "bass", "pad", "melody", "arp", "lead"]},
+    {"section": "outro", "bars": 4, "energy": 0.25, "layers": ["pad", "melody"]}
+  ]
+}

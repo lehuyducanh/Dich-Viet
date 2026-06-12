@@ -1,0 +1,56 @@
+{
+  "name": "trap",
+  "display_name": "Trap / Hip-hop",
+  "description": "140 BPM half-time trap: booming 808 bass, crisp hats with rolls, sparse kick, snare on beat 3. Best for hip-hop, dark, hard, swagger themes.",
+  "tempo_range": [135, 150],
+  "default_energy": 0.8,
+  "swing": 0.0,
+  "instruments": {
+    "bass": 38,
+    "pad": 89,
+    "arp": 45,
+    "melody": 9,
+    "lead": 80,
+    "fx": 102
+  },
+  "drum_patterns": {
+    "low": {
+      "kick": "x...............",
+      "chh": "o.o.o.o.o.o.o.o.",
+      "snare": "........s......."
+    },
+    "mid": {
+      "kick": "x......x..x.....",
+      "snare": "........x.......",
+      "chh": "o.o.o.o.o.oooo.o"
+    },
+    "high": {
+      "kick": "x......x..x....x",
+      "snare": "........x.......",
+      "clap": "........x.......",
+      "chh": "o.oo.o.ooooo.o.o",
+      "ohh": "......x.......x."
+    },
+    "build": {
+      "kick": "x...x...x...x...",
+      "snare": "o...o...o.o.oooo",
+      "chh": "oooooooooooooooo"
+    }
+  },
+  "bass_style": {
+    "low": "sustained_roots",
+    "mid": "trap_808",
+    "high": "trap_808",
+    "build": "four_floor_roots"
+  },
+  "arp_style": "updown8",
+  "default_arrangement": [
+    {"section": "intro", "bars": 4, "energy": 0.3, "layers": ["pad", "melody"]},
+    {"section": "verse", "bars": 16, "energy": 0.65, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "build", "bars": 4, "energy": 0.75, "layers": ["drums", "bass", "fx"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "melody", "lead", "arp"]},
+    {"section": "breakdown", "bars": 8, "energy": 0.4, "layers": ["pad", "melody", "arp"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "melody", "lead", "arp"]},
+    {"section": "outro", "bars": 4, "energy": 0.25, "layers": ["pad", "melody"]}
+  ]
+}

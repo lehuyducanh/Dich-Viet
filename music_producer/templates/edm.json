@@ -1,0 +1,58 @@
+{
+  "name": "edm",
+  "display_name": "EDM / Big Room Festival",
+  "description": "High-energy festival EDM: four-on-the-floor kick, offbeat bass, huge supersaw drops, snare-roll builds. Best for 'sôi động', energetic, party, festival themes.",
+  "tempo_range": [126, 130],
+  "default_energy": 0.9,
+  "swing": 0.0,
+  "instruments": {
+    "bass": 39,
+    "pad": 90,
+    "arp": 81,
+    "melody": 81,
+    "lead": 80,
+    "fx": 102
+  },
+  "drum_patterns": {
+    "low": {
+      "kick": "x...x...x...x...",
+      "chh": "..s...s...s...s.",
+      "shaker": "s.s.s.s.s.s.s.s."
+    },
+    "mid": {
+      "kick": "x...x...x...x...",
+      "clap": "....x.......x...",
+      "chh": "..o...o...o...o.",
+      "shaker": "o.s.o.s.o.s.o.s."
+    },
+    "high": {
+      "kick": "x...x...x...x...",
+      "clap": "....x.......x...",
+      "ohh": "..x...x...x...x.",
+      "ride": "o.o.o.o.o.o.o.o.",
+      "shaker": "o.s.o.s.o.s.o.s."
+    },
+    "build": {
+      "kick": "x...x...x...x...",
+      "snare": "o.o.o.o.oooooooo",
+      "chh": "o.o.o.o.o.o.o.o."
+    }
+  },
+  "bass_style": {
+    "low": "sustained_roots",
+    "mid": "eighth_pump",
+    "high": "offbeat_eighths",
+    "build": "eighth_pump"
+  },
+  "arp_style": "up16",
+  "default_arrangement": [
+    {"section": "intro", "bars": 8, "energy": 0.3, "layers": ["drums", "pad", "arp"]},
+    {"section": "verse", "bars": 8, "energy": 0.55, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "build", "bars": 8, "energy": 0.75, "layers": ["drums", "bass", "pad", "arp", "melody", "fx"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "arp", "lead", "melody"]},
+    {"section": "breakdown", "bars": 8, "energy": 0.4, "layers": ["pad", "melody", "arp"]},
+    {"section": "build", "bars": 8, "energy": 0.8, "layers": ["drums", "bass", "pad", "arp", "melody", "fx"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "arp", "lead", "melody"]},
+    {"section": "outro", "bars": 8, "energy": 0.3, "layers": ["drums", "pad", "arp"]}
+  ]
+}

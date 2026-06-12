@@ -1,0 +1,59 @@
+{
+  "name": "house",
+  "display_name": "Deep / Classic House",
+  "description": "Groovy 120-125 BPM house: four-on-the-floor, shuffled hats, root-fifth-octave bassline, warm chord stabs. Best for groovy, dance, club, chill-but-moving themes.",
+  "tempo_range": [120, 125],
+  "default_energy": 0.75,
+  "swing": 0.25,
+  "instruments": {
+    "bass": 38,
+    "pad": 89,
+    "arp": 4,
+    "melody": 11,
+    "lead": 62,
+    "fx": 102
+  },
+  "drum_patterns": {
+    "low": {
+      "kick": "x...x...x...x...",
+      "chh": "..o...o...o...o.",
+      "shaker": "s.s.s.s.s.s.s.s."
+    },
+    "mid": {
+      "kick": "x...x...x...x...",
+      "clap": "....x.......x...",
+      "chh": "..o...o...o...o.",
+      "shaker": "o.so.so.so.so.so",
+      "rimshot": "......s.......s."
+    },
+    "high": {
+      "kick": "x...x...x...x...",
+      "clap": "....x.......x...",
+      "ohh": "..x...x...x...x.",
+      "chh": "o.o.o.o.o.o.o.o.",
+      "shaker": "osooosooosooosoo",
+      "tamb": "..o...o...o...o."
+    },
+    "build": {
+      "kick": "x...x...x...x...",
+      "snare": "....o.o.o.oooooo",
+      "chh": "o.o.o.o.o.o.o.o."
+    }
+  },
+  "bass_style": {
+    "low": "sustained_roots",
+    "mid": "root_fifth_octave",
+    "high": "root_fifth_octave",
+    "build": "eighth_pump"
+  },
+  "arp_style": "up8",
+  "default_arrangement": [
+    {"section": "intro", "bars": 8, "energy": 0.35, "layers": ["drums", "pad"]},
+    {"section": "verse", "bars": 16, "energy": 0.6, "layers": ["drums", "bass", "pad", "melody"]},
+    {"section": "build", "bars": 4, "energy": 0.7, "layers": ["drums", "bass", "pad", "fx"]},
+    {"section": "chorus", "bars": 16, "energy": 0.9, "layers": ["drums", "bass", "pad", "arp", "melody", "lead"]},
+    {"section": "breakdown", "bars": 8, "energy": 0.4, "layers": ["pad", "melody", "arp"]},
+    {"section": "chorus", "bars": 16, "energy": 0.95, "layers": ["drums", "bass", "pad", "arp", "melody", "lead"]},
+    {"section": "outro", "bars": 8, "energy": 0.3, "layers": ["drums", "bass", "pad"]}
+  ]
+}

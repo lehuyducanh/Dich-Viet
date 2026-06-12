@@ -1,0 +1,57 @@
+{
+  "name": "dnb",
+  "display_name": "Drum & Bass / Liquid",
+  "description": "170-176 BPM drum & bass: fast two-step breaks, rolling sub bass, airy pads. Best for fast, intense, liquid, running, adrenaline themes.",
+  "tempo_range": [170, 176],
+  "default_energy": 0.9,
+  "swing": 0.0,
+  "instruments": {
+    "bass": 39,
+    "pad": 95,
+    "arp": 81,
+    "melody": 80,
+    "lead": 81,
+    "fx": 102
+  },
+  "drum_patterns": {
+    "low": {
+      "chh": "o.o.o.o.o.o.o.o.",
+      "shaker": "s.s.s.s.s.s.s.s.",
+      "ride": "....s.......s..."
+    },
+    "mid": {
+      "kick": "x.........x.....",
+      "snare": "....x.......x...",
+      "chh": "o.o.o.o.o.o.o.o.",
+      "shaker": "s.ss.ss.s.ss.ss."
+    },
+    "high": {
+      "kick": "x.........x...x.",
+      "snare": "....x.......x...",
+      "chh": "o.oo.o.oo.oo.o.o",
+      "ohh": "......x.........",
+      "shaker": "ssssssssssssssss"
+    },
+    "build": {
+      "kick": "x...x...x...x...",
+      "snare": "o.o.o.o.oooooooo",
+      "chh": "oooooooooooooooo"
+    }
+  },
+  "bass_style": {
+    "low": "sustained_roots",
+    "mid": "rolling_octaves",
+    "high": "rolling_octaves",
+    "build": "eighth_pump"
+  },
+  "arp_style": "up16",
+  "default_arrangement": [
+    {"section": "intro", "bars": 8, "energy": 0.35, "layers": ["drums", "pad", "arp"]},
+    {"section": "build", "bars": 8, "energy": 0.7, "layers": ["drums", "bass", "pad", "fx"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "melody", "lead"]},
+    {"section": "breakdown", "bars": 8, "energy": 0.4, "layers": ["pad", "melody", "arp"]},
+    {"section": "build", "bars": 8, "energy": 0.75, "layers": ["drums", "bass", "pad", "arp", "fx"]},
+    {"section": "drop", "bars": 16, "energy": 1.0, "layers": ["drums", "bass", "pad", "melody", "lead", "arp"]},
+    {"section": "outro", "bars": 8, "energy": 0.3, "layers": ["drums", "pad"]}
+  ]
+}
