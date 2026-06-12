@@ -1,0 +1,103 @@
+{
+  "template": "edm",
+  "target_tempo": 128.0,
+  "transpose": 0,
+  "energy": 0.9,
+  "sections": [
+    {
+      "name": "intro",
+      "bars": 10,
+      "energy": 0.3,
+      "layers": [
+        "drums",
+        "pad",
+        "arp"
+      ]
+    },
+    {
+      "name": "verse",
+      "bars": 10,
+      "energy": 0.55,
+      "layers": [
+        "drums",
+        "bass",
+        "pad",
+        "melody"
+      ]
+    },
+    {
+      "name": "build",
+      "bars": 10,
+      "energy": 0.75,
+      "layers": [
+        "drums",
+        "bass",
+        "pad",
+        "arp",
+        "melody",
+        "fx"
+      ]
+    },
+    {
+      "name": "drop",
+      "bars": 18,
+      "energy": 1.0,
+      "layers": [
+        "drums",
+        "bass",
+        "pad",
+        "arp",
+        "lead",
+        "melody"
+      ]
+    },
+    {
+      "name": "breakdown",
+      "bars": 10,
+      "energy": 0.4,
+      "layers": [
+        "pad",
+        "melody",
+        "arp"
+      ]
+    },
+    {
+      "name": "build",
+      "bars": 10,
+      "energy": 0.8,
+      "layers": [
+        "drums",
+        "bass",
+        "pad",
+        "arp",
+        "melody",
+        "fx"
+      ]
+    },
+    {
+      "name": "drop",
+      "bars": 18,
+      "energy": 1.0,
+      "layers": [
+        "drums",
+        "bass",
+        "pad",
+        "arp",
+        "lead",
+        "melody"
+      ]
+    },
+    {
+      "name": "outro",
+      "bars": 10,
+      "energy": 0.3,
+      "layers": [
+        "drums",
+        "pad",
+        "arp"
+      ]
+    }
+  ],
+  "title": "EDM / Big Room Festival Remix",
+  "notes": "Rule-based fallback: matched template 'edm' from the theme keywords."
+}

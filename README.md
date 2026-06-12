@@ -115,6 +115,29 @@ print(plan.notes)  # lý do producer chọn cách sản xuất này
 python -m pytest tests/ -v
 ```
 
+## Sản xuất nhanh hàng loạt — giảm tải LLM
+
+LLM chỉ tạo ra **kế hoạch sản xuất** (JSON nhỏ) — và kế hoạch là tài sản tái sử dụng:
+
+```bash
+# Lần ĐẦU cho mỗi theme: gọi LLM 1 lần, lưu thành preset
+python -m music_producer remix song1.mid -t "EDM sôi động tiệc tùng" \
+    --duration 180 --save-plan presets/edm_party_180s.json -o song1_edm.mid
+
+# Mọi bài sau cùng theme: 0 LLM call
+python -m music_producer remix song2.mid --plan presets/edm_party_180s.json -o song2_edm.mid
+
+# Cả thư mục nhạc: 0 LLM call, 1 lệnh
+python -m music_producer batch songs/*.mid --plan presets/edm_party_180s.json -o produced/ --audio
+```
+
+Chiến lược giảm tải LLM theo tầng:
+1. **Preset plan** (`--plan`): đã có theme tương tự → 0 call. Preset là JSON đọc được, chỉnh tay được (đổi số bars, layers...), được validate lại khi load.
+2. **Rule-based** (`--no-llm`): theme phổ thông khớp keyword (EDM/lofi/trap...) → 0 call, vẫn ra arrangement chuẩn từ template.
+3. **Batch** (`batch -t "..."`): N bài cùng theme → tối đa 1 call cho cả lô.
+4. **LLM** chỉ dành cho brief mới/đặc biệt — và mỗi lần gọi nên kèm `--save-plan` để không bao giờ phải hỏi lại.
+5. Đầu tư chất lượng vào **template JSON** (genre mới, sound design, arrangement) — nâng cấp vĩnh viễn, không tốn token nào.
+
 ## Tùy chỉnh sound design
 
 Mỗi template có thể override patch của từng layer trong JSON — không cần sửa code:

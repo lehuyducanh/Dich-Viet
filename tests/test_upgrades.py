@@ -199,3 +199,46 @@ def test_fit_duration_shrinks_too(library):
     seconds = plan.total_bars * 4 / plan.target_tempo * 60
     assert abs(seconds - 60.0) < 4.0
     assert all(s.bars >= 2 for s in plan.sections)
+
+
+# --- plan presets & batch (LLM-free reuse) -------------------------------------------
+
+def test_plan_save_load_roundtrip(tmp_path, library):
+    from examples.make_happy_birthday import build
+    from music_producer.plan_io import load_plan, save_plan
+
+    analysis = analyze(build())
+    plan = RuleBasedBrain().make_plan(analysis, "edm 128bpm", library)
+    plan.title = "Tiệc sinh nhật"
+    p = tmp_path / "preset.json"
+    save_plan(plan, p)
+
+    loaded = load_plan(p, library)
+    assert loaded.template == plan.template
+    assert loaded.target_tempo == plan.target_tempo
+    assert loaded.title == "Tiệc sinh nhật"
+    assert [s.name for s in loaded.sections] == [s.name for s in plan.sections]
+    assert [s.bars for s in loaded.sections] == [s.bars for s in plan.sections]
+
+
+def test_cli_batch_with_preset(tmp_path, library):
+    from examples.make_demo_input import build as build_demo
+    from examples.make_happy_birthday import build as build_hbd
+    from music_producer.cli import main
+    from music_producer.plan_io import save_plan
+    from music_producer.renderer import render_midi
+
+    in1, in2 = tmp_path / "a.mid", tmp_path / "b.mid"
+    render_midi(build_hbd(), in1)
+    render_midi(build_demo(), in2)
+
+    analysis = analyze(build_hbd())
+    plan = RuleBasedBrain().make_plan(analysis, "house", library)
+    preset = tmp_path / "house.json"
+    save_plan(plan, preset)
+
+    out_dir = tmp_path / "out"
+    rc = main(["batch", str(in1), str(in2), "--plan", str(preset), "-o", str(out_dir)])
+    assert rc == 0
+    produced = sorted(f.name for f in out_dir.glob("*.mid"))
+    assert produced == ["a.house.mid", "b.house.mid"]
