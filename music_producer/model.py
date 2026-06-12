@@ -60,6 +60,7 @@ class Song:
     tempo: float = 120.0
     time_signature: tuple[int, int] = (4, 4)
     tracks: list[Track] = field(default_factory=list)
+    explicit_chords: list["Chord"] = field(default_factory=list)  # e.g. MusicXML <harmony>
 
     @property
     def beats_per_bar(self) -> float:

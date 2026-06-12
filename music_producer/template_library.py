@@ -33,6 +33,7 @@ class Template:
     bass_style: dict[str, str]                    # level -> style name
     arp_style: str
     default_arrangement: list[dict] = field(default_factory=list)
+    sound_design: dict = field(default_factory=dict)  # layer -> Patch overrides (see sound_design.py)
 
     @property
     def default_tempo(self) -> float:
@@ -78,6 +79,7 @@ def load_template_file(path: Path) -> Template:
         bass_style=raw["bass_style"],
         arp_style=raw["arp_style"],
         default_arrangement=raw["default_arrangement"],
+        sound_design=raw.get("sound_design", {}),
     )
 
 

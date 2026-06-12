@@ -23,9 +23,10 @@ __all__ = [
 
 def produce(input_path, theme: str, output_path, use_llm: bool = True,
             template: str | None = None, tempo: float | None = None,
-            template_dirs=None):
+            template_dirs=None, audio_path=None):
     """One-call API: produce a track from an input file and a theme brief.
 
+    Pass audio_path to also bounce a WAV with the built-in synth engine.
     Returns (analysis, plan, output_song).
     """
     library = TemplateLibrary(extra_dirs=template_dirs)
@@ -39,4 +40,7 @@ def produce(input_path, theme: str, output_path, use_llm: bool = True,
         plan.target_tempo = library.get(plan.template).clamp_tempo(tempo)
     out = arrange(analysis, plan, library)
     render_midi(out, output_path)
+    if audio_path:
+        from .synth_engine import render_wav
+        render_wav(out, library.get(plan.template).sound_design, audio_path)
     return analysis, plan, out

@@ -44,6 +44,12 @@
     "build": "four_floor_roots"
   },
   "arp_style": "updown8",
+  "sound_design": {
+    "bass": {"osc": "sine", "sub": true, "cutoff": 320, "decay": 0.3, "sustain": 0.9, "release": 0.5, "gain": 1.0, "sidechain": 0.25},
+    "melody": {"osc": "sine", "voices": 2, "detune": 0.04, "cutoff": 6500, "decay": 0.4, "sustain": 0.3, "delay": 0.3, "reverb": 0.45},
+    "pad": {"cutoff": 2200, "gain": 0.26, "reverb": 0.55},
+    "drums": {"gain": 1.0, "reverb": 0.08}
+  },
   "default_arrangement": [
     {"section": "intro", "bars": 4, "energy": 0.3, "layers": ["pad", "melody"]},
     {"section": "verse", "bars": 16, "energy": 0.65, "layers": ["drums", "bass", "pad", "melody"]},

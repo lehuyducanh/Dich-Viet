@@ -47,6 +47,13 @@
     "build": "eighth_pump"
   },
   "arp_style": "up8",
+  "sound_design": {
+    "bass": {"osc": "saw", "cutoff": 650, "sidechain": 0.8, "release": 0.1},
+    "pad": {"osc": "supersaw", "voices": 3, "detune": 0.08, "cutoff": 2400, "sidechain": 0.6},
+    "arp": {"osc": "triangle", "cutoff": 3800, "delay": 0.3},
+    "melody": {"osc": "triangle", "cutoff": 3600, "gain": 0.55},
+    "drums": {"gain": 0.95, "reverb": 0.14}
+  },
   "default_arrangement": [
     {"section": "intro", "bars": 8, "energy": 0.35, "layers": ["drums", "pad"]},
     {"section": "verse", "bars": 16, "energy": 0.6, "layers": ["drums", "bass", "pad", "melody"]},

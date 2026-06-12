@@ -45,6 +45,12 @@
     "build": "eighth_pump"
   },
   "arp_style": "up16",
+  "sound_design": {
+    "bass": {"osc": "saw", "sub": true, "cutoff": 1100, "sidechain": 0.9},
+    "pad": {"voices": 7, "detune": 0.18, "sidechain": 0.75},
+    "lead": {"voices": 7, "detune": 0.35, "cutoff": 9500, "gain": 0.62},
+    "drums": {"gain": 1.0, "reverb": 0.1}
+  },
   "default_arrangement": [
     {"section": "intro", "bars": 8, "energy": 0.3, "layers": ["drums", "pad", "arp"]},
     {"section": "verse", "bars": 8, "energy": 0.55, "layers": ["drums", "bass", "pad", "melody"]},

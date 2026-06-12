@@ -6,10 +6,10 @@ Hệ thống giả lập quy trình sản xuất của một **music producer ch
 > **Output**: một bản nhạc hoàn chỉnh, sôi động, theo **theme tùy chỉnh** bạn yêu cầu — sử dụng **LLM (Claude)** làm "bộ não producer" kết hợp **kho template genre build sẵn**.
 
 ```
-MIDI / MusicXML ──▶ Phân tích nhạc lý ──▶ LLM Producer Brain ──▶ Arranger ──▶ MIDI hoàn chỉnh
-                    (key, chords,         (đọc brief + chọn      (drums, bass,   (+ WAV nếu có
-                     melody, tempo)        template, lập kế        pad, arp,       fluidsynth)
-                                           hoạch arrangement)      lead, FX)
+MIDI / MusicXML ──▶ Phân tích nhạc lý ──▶ LLM Producer Brain ──▶ Arranger ──▶ MIDI + WAV
+                    (key, harmonic        (đọc brief + chọn      (drums, bass,   (synth engine
+                     rhythm, chords 7th,   template, lập kế        pad, arp,       nội bộ, không
+                     melody, tempo)        hoạch arrangement)      lead, FX)       cần DAW)
 ```
 
 ## Cài đặt
@@ -39,8 +39,11 @@ python -m music_producer templates
 # Phân tích input (key, chords, melody)
 python -m music_producer analyze input.mid
 
-# Bounce thêm file .wav (cần fluidsynth + GM soundfont)
+# Bounce thêm file .wav bằng synth engine nội bộ — KHÔNG cần DAW/soundfont
 python -m music_producer remix input.mid -t "synthwave retro" --audio
+
+# (tùy chọn) bounce qua fluidsynth + GM soundfont nếu bạn thích âm thanh GM
+python -m music_producer remix input.mid -t "synthwave retro" --fluidsynth
 ```
 
 ### Python API
@@ -52,6 +55,7 @@ analysis, plan, song = produce(
     "input.mid",
     theme="trap 808 thật dark, năng lượng cao",
     output_path="output.mid",
+    audio_path="output.wav",   # tùy chọn: bounce WAV bằng engine nội bộ
 )
 print(plan.notes)  # lý do producer chọn cách sản xuất này
 ```
@@ -60,14 +64,15 @@ print(plan.notes)  # lý do producer chọn cách sản xuất này
 
 | Module | Vai trò |
 |---|---|
-| `midi_io.py` | Đọc MIDI (mido) và MusicXML/MXL cơ bản → `Song` |
-| `analysis.py` | Phát hiện key (Krumhansl-Schmuckler), hợp âm theo từng bar, trích xuất melody → `SongAnalysis` |
+| `midi_io.py` | Đọc MIDI (mido) và MusicXML/MXL: ties, grace notes, transpose, metronome, voices, **chord symbols `<harmony>`** → `Song` |
+| `analysis.py` | Phát hiện key (Krumhansl-Schmuckler); **hợp âm theo nửa bar** với bộ chất lượng mở rộng (maj/min/dim/sus4/maj7/min7/dom7), xử lý đảo phách (anticipation), hysteresis chống đổi hợp âm giả, merge thành **harmonic rhythm** thực; trích xuất melody → `SongAnalysis` |
 | `producer_brain.py` | **LLM brain** (Claude `claude-opus-4-8`, structured JSON output) đọc bản phân tích + brief của bạn → `ProductionPlan`. Fallback `RuleBasedBrain` khi offline |
-| `template_library.py` + `templates/*.json` | Kho template genre: tempo range, drum grid 16-step theo mức năng lượng, style bassline, nhạc cụ GM, arrangement mặc định |
-| `generators.py` | Sinh từng layer: drums (grid), bass (9 styles), pad (voicing + 9th), arp, melody/lead (tile melody gốc), FX riser |
+| `template_library.py` + `templates/*.json` | Kho template genre: tempo range, drum grid 16-step theo mức năng lượng, style bassline, nhạc cụ GM, **sound design patches**, arrangement mặc định |
+| `generators.py` | Sinh từng layer bám theo harmonic rhythm (hợp âm đổi giữa bar vẫn đúng): drums (grid), bass (9 styles), pad (voicing + 9th), arp, melody/lead (tile melody gốc), FX riser |
 | `arrangement.py` | Lắp các section theo plan: intro → verse → build → drop → breakdown → ... |
 | `humanize.py` | Swing, micro-timing, velocity jitter (deterministic) |
 | `renderer.py` | Xuất Standard MIDI File; tùy chọn bounce WAV qua FluidSynth |
+| `sound_design.py` + `synth_engine.py` | **Synth engine nội bộ** (numpy DSP): subtractive synth (saw/supersaw/square/triangle/sine, unison detune, sub-osc, lowpass, ADSR), drums tổng hợp (kick sweep, snare/clap/hats từ noise), **sidechain pump theo kick thật**, delay ping-pong sync tempo, reverb FFT-convolution, vinyl crackle cho lofi, limiter → WAV stereo 16-bit |
 
 ## Kho template có sẵn
 
@@ -95,8 +100,23 @@ print(plan.notes)  # lý do producer chọn cách sản xuất này
 python -m pytest tests/ -v
 ```
 
+## Tùy chỉnh sound design
+
+Mỗi template có thể override patch của từng layer trong JSON — không cần sửa code:
+
+```json
+"sound_design": {
+  "bass":  {"osc": "sine", "sub": true, "release": 0.5, "sidechain": 0.9},
+  "lead":  {"osc": "supersaw", "voices": 7, "detune": 0.35, "cutoff": 9500},
+  "drums": {"gain": 1.0, "reverb": 0.1},
+  "_master": {"vinyl": 0.6, "cutoff": 7500}
+}
+```
+
+Các tham số patch: `osc` (saw/supersaw/square/triangle/sine/noise), `voices`, `detune`, `octave`, `sub`, `cutoff`, `attack/decay/sustain/release`, `gain`, `pan`, `width` (stereo Haas), `delay`, `reverb`, `sidechain`. Mặc định cho từng layer ở `sound_design.py`.
+
 ## Giới hạn hiện tại
 
-- Output là MIDI General MIDI — chất lượng âm thanh cuối phụ thuộc soundfont/DAW của bạn; đưa file vào DAW để mix với synth thật là bước tiếp theo tự nhiên.
-- Phát hiện hợp âm theo bar (1 hợp âm/bar), đủ tốt cho nhạc pop/điện tử, chưa xử lý đảo phách hòa thanh phức tạp.
-- MusicXML hỗ trợ mức cơ bản (notes, chords, time/tempo).
+- Synth engine nội bộ hướng tới chất lượng demo/preview tốt — bản phát hành thương mại vẫn nên đưa file MIDI vào DAW với synth/sample chuyên nghiệp để mix-master.
+- Hợp âm phát hiện ở độ phân giải nửa bar; hòa thanh đổi nhanh hơn (mỗi beat) sẽ được làm tròn về nửa bar gần nhất.
+- MusicXML: chưa hỗ trợ `score-timewise`, repeat/volta, và dynamics chi tiết.

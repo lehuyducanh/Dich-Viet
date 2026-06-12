@@ -1,2 +1,3 @@
 mido>=1.3
+numpy>=1.26      # built-in audio engine (WAV rendering)
 anthropic>=0.40  # optional at runtime: only needed for the LLM producer brain

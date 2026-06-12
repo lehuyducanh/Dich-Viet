@@ -32,7 +32,9 @@ def main(argv: list[str] | None = None) -> int:
     p_remix.add_argument("--no-llm", action="store_true",
                          help="Skip the LLM and use the rule-based planner")
     p_remix.add_argument("--audio", action="store_true",
-                         help="Also bounce a .wav (requires fluidsynth + GM soundfont)")
+                         help="Also bounce a .wav with the built-in synth engine (no DAW/soundfont needed)")
+    p_remix.add_argument("--fluidsynth", action="store_true",
+                         help="Bounce audio via fluidsynth + GM soundfont instead of the built-in engine")
     p_remix.add_argument("--template-dir", action="append", default=[],
                          help="Extra directory of custom template JSON files")
 
@@ -86,12 +88,19 @@ def main(argv: list[str] | None = None) -> int:
     total_notes = sum(len(t.notes) for t in out_song.tracks)
     print(f"[4/4] Rendered {len(out_song.tracks)} tracks / {total_notes} notes -> {output}")
 
-    if args.audio:
-        wav = render_audio(output, output.with_suffix(".wav"))
-        if wav:
-            print(f"      Audio bounce -> {wav}")
+    if args.audio or args.fluidsynth:
+        wav_path = output.with_suffix(".wav")
+        if args.fluidsynth:
+            wav = render_audio(output, wav_path)
+            if wav:
+                print(f"      Audio bounce (fluidsynth) -> {wav}")
+            else:
+                print("      fluidsynth bounce skipped (binary or GM soundfont not found)")
         else:
-            print("      Audio bounce skipped (fluidsynth or GM soundfont not found)")
+            from .synth_engine import render_wav
+            template = library.get(plan.template)
+            render_wav(out_song, template.sound_design, wav_path)
+            print(f"      Audio bounce (built-in synth engine) -> {wav_path}")
     return 0
 
 

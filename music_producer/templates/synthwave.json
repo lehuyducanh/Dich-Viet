@@ -46,6 +46,13 @@
     "build": "sixteenth_pump"
   },
   "arp_style": "updown16",
+  "sound_design": {
+    "bass": {"osc": "saw", "cutoff": 1300, "attack": 0.002, "decay": 0.1, "sustain": 0.5, "sidechain": 0.5},
+    "pad": {"voices": 5, "detune": 0.1, "cutoff": 2800, "attack": 0.6, "release": 1.0, "reverb": 0.55},
+    "arp": {"osc": "square", "cutoff": 4500, "delay": 0.4, "width": 0.6},
+    "lead": {"voices": 5, "detune": 0.2, "cutoff": 7000, "delay": 0.35},
+    "drums": {"gain": 0.95, "reverb": 0.3}
+  },
   "default_arrangement": [
     {"section": "intro", "bars": 8, "energy": 0.35, "layers": ["drums", "pad", "arp"]},
     {"section": "verse", "bars": 16, "energy": 0.6, "layers": ["drums", "bass", "pad", "melody"]},
