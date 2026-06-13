@@ -33,6 +33,9 @@ class Patch:
     delay: float = 0.0        # 0-1 send to tempo-synced delay
     reverb: float = 0.2       # 0-1 send to the reverb bus
     sidechain: float = 0.0    # 0-1 ducking from the kick
+    eq_low: float = 0.0       # low-shelf gain in dB (+ boost / - cut)
+    eq_high: float = 0.0      # high-shelf gain in dB
+    automate: bool = True     # follow the song's filter automation
 
     @classmethod
     def build(cls, *overrides: dict) -> "Patch":

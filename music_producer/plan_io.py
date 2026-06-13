@@ -15,7 +15,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from .model import ProductionPlan
+from .model import OrchestrationPlan, ProductionPlan
 from .producer_brain import _plan_from_dict
 from .template_library import TemplateLibrary
 
@@ -32,3 +32,17 @@ def load_plan(path: str | Path, library: TemplateLibrary) -> ProductionPlan:
     (same clamping as LLM output, so hand-edited presets are safe too)."""
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     return _plan_from_dict(raw, library)
+
+
+def save_orchestration(orch: OrchestrationPlan, path: str | Path) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(asdict(orch), indent=2, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def load_orchestration(path: str | Path, plan: ProductionPlan) -> OrchestrationPlan:
+    """Load and re-validate a saved orchestration against the plan it will run on."""
+    from .orchestrator import orch_from_dict
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    return orch_from_dict(raw, plan)

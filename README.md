@@ -6,11 +6,18 @@ Hệ thống giả lập quy trình sản xuất của một **music producer ch
 > **Output**: một bản nhạc hoàn chỉnh, sôi động, theo **theme tùy chỉnh** bạn yêu cầu — sử dụng **LLM (Claude)** làm "bộ não producer" kết hợp **kho template genre build sẵn**.
 
 ```
-MIDI / MusicXML ──▶ Phân tích nhạc lý ──▶ LLM Producer Brain ──▶ Arranger ──▶ MIDI + WAV
-                    (key, harmonic        (đọc brief + chọn      (drums, bass,   (synth engine
-                     rhythm, chords 7th,   template, lập kế        pad, arp,       nội bộ, không
-                     melody, tempo)        hoạch arrangement)      lead, FX)       cần DAW)
+                     ┌─ Pass 1: Producer Brain ─┐   ┌─ Pass 2: Orchestration Brain ─┐
+MIDI / MusicXML ─▶ Phân tích ─▶ (genre, tempo,      ─▶ (chọn nhạc cụ/layer, filter   ─▶ Arranger ─▶ MIDI + WAV + stems
+   (re-meter      nhạc lý       cấu trúc, energy        automation, fills, key lift,     (variation,   (synth engine
+    3/4→4/4)      (key, chords  từng section)           loudness target)                 mix layer)    nội bộ)
+                   7th, melody)
 ```
+
+**Hai lớp reasoning** (cả hai đều là JSON nhỏ, cache/tái sử dụng được):
+- **Producer Brain** quyết định vĩ mô: genre, tempo, cấu trúc, energy từng section.
+- **Orchestration Brain** quyết định vi mô như producer thật: nhạc cụ nào cho từng layer (từ catalog), độ "mở" filter theo thời gian, cadence fill trống, key lift cho drop cuối, mức loudness master.
+
+Lớp Orchestration **luôn chạy** — bản rule-based miễn phí mặc định (đã nâng chất lượng đáng kể), chỉ gọi LLM khi `--orchestrate`.
 
 ## Cài đặt
 
@@ -137,6 +144,31 @@ Chiến lược giảm tải LLM theo tầng:
 3. **Batch** (`batch -t "..."`): N bài cùng theme → tối đa 1 call cho cả lô.
 4. **LLM** chỉ dành cho brief mới/đặc biệt — và mỗi lần gọi nên kèm `--save-plan` để không bao giờ phải hỏi lại.
 5. Đầu tư chất lượng vào **template JSON** (genre mới, sound design, arrangement) — nâng cấp vĩnh viễn, không tốn token nào.
+
+## Chất lượng "thị trường": orchestration, variation, mix, stems
+
+```bash
+# Lớp orchestration LLM (chọn nhạc cụ + mix), lưu lại để tái dùng
+python -m music_producer remix song.mid -t "EDM festival, hook sáng" \
+    --orchestrate --save-orch presets/edm_orch.json --audio
+
+# Tái dùng orchestration preset (0 LLM) + xuất stems để mix trong DAW
+python -m music_producer remix song2.mid --plan presets/edm_party_180s.json \
+    --orch-plan presets/edm_orch.json --audio --stems
+
+# Bài gốc nhịp 3/4 (waltz, Happy Birthday) → tự chuyển 4/4 trước khi remix
+python -m music_producer remix waltz.mid -t "EDM" --remeter --audio
+```
+
+Những gì lớp này thêm vào để tiến gần chất lượng phát hành:
+- **Sound selection**: catalog nhạc cụ nhiều lựa chọn mỗi layer (sub/saw/reese/808 bass; supersaw/string/organ pad; pluck/bell/EP; supersaw/saw/square/sine lead...). Orchestration chọn 1 voice/layer cho hợp gu.
+- **Filter automation**: mỗi section có độ sáng 0-1; build **mở dần filter** vào drop — chữ ký âm thanh EDM, render bằng blend dark/bright (time-varying lowpass).
+- **Variation engine**: melody biến tấu giữa các lần lặp (lift octave, nốt hoa cuối câu), **fill trống** mỗi 8 bars, **key lift** drop cuối — hết cảm giác copy-paste.
+- **Mix layer**: EQ shelf per-track, bus compression, **chuẩn hóa loudness** về mục tiêu (≈ -9 LUFS club, -14 lofi), limiter master.
+- **Stems** (`--stems`): xuất WAV riêng từng layer để hoàn thiện/mix trong DAW.
+- **Meter handling** (`--remeter`): chuyển 3/4 hoặc 6/8 sang 4/4.
+
+> **Trung thực về giới hạn:** engine nội bộ đạt chất lượng demo/preview xuất sắc và lo ~70% giá trị sáng tạo (arrangement, sound selection, dynamics). Bản phát hành thương mại tuyệt đối (vocal, sample/synth chuyên nghiệp, mastering engineer) vẫn nên đi qua DAW — và đó chính là lý do có `--stems`.
 
 ## Tùy chỉnh sound design
 

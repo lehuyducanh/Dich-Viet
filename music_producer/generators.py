@@ -227,10 +227,14 @@ def gen_arp(style: str, chords: list[Chord], section_start: float, bars: int,
 # --- Melody / Lead ----------------------------------------------------------------
 
 def gen_melody(melody: list[Note], bars: int, beats_per_bar: float,
-               energy: float, octave_shift: int = 0) -> list[Note]:
-    """Tile the client's original melody across the section."""
+               energy: float, octave_shift: int = 0,
+               vary: bool = False, key_mode: str = "major") -> list[Note]:
+    """Tile the client's original melody across the section. With vary=True,
+    each loop repeat gets tasteful variation so it never feels copy-pasted."""
     if not melody:
         return []
+    from .variation import vary_melody_loop
+
     base = min(n.start for n in melody)
     length = max(n.start + n.duration for n in melody) - base
     loop_bars = max(1, int(length / beats_per_bar + 0.999))
@@ -240,15 +244,20 @@ def gen_melody(melody: list[Note], bars: int, beats_per_bar: float,
     vel = _vel(98, energy)
     out: list[Note] = []
     offset = 0.0
+    iteration = 0
     while offset < section_len - 1e-6:
-        for n in melody:
-            start = offset + (n.start - base)
-            if start >= section_len:
+        loop = [Note(n.pitch, n.start - base, n.duration, n.velocity, n.channel) for n in melody]
+        if vary:
+            loop = vary_melody_loop(loop, iteration, key_mode)
+        for n in loop:
+            start = offset + n.start
+            if start >= section_len - 1e-6:
                 continue
             duration = min(n.duration, section_len - start)
             pitch = max(0, min(127, n.pitch + 12 * octave_shift))
             out.append(Note(pitch, start, duration, min(127, vel + (n.velocity - 96) // 3)))
         offset += loop_len
+        iteration += 1
     return out
 
 

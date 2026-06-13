@@ -1,0 +1,25 @@
+{
+  "instruments": {
+    "bass": "saw_bass",
+    "pad": "supersaw_pad",
+    "arp": "pluck",
+    "melody": "saw_lead",
+    "lead": "supersaw_lead",
+    "fx": "noise_riser"
+  },
+  "section_filter": [
+    0.47,
+    0.66,
+    0.82,
+    1.0,
+    0.55,
+    0.85,
+    1.0,
+    0.47
+  ],
+  "fills_every": 8,
+  "final_lift": 2,
+  "melody_variation": true,
+  "master_lufs": -10.0,
+  "notes": "Rule-based orchestration for 'edm': catalog defaults, energy-driven filter automation."
+}

@@ -13,6 +13,8 @@ from pathlib import Path
 
 from . import analyze, arrange, describe, get_brain, load, render_audio, render_midi
 from .arrangement import fit_duration
+from .meter import to_four_four
+from .orchestrator import get_orchestrator, merged_sound_design
 from .template_library import TemplateLibrary
 
 
@@ -42,6 +44,16 @@ def main(argv: list[str] | None = None) -> int:
                          help="Also bounce a .wav with the built-in synth engine (no DAW/soundfont needed)")
     p_remix.add_argument("--fluidsynth", action="store_true",
                          help="Bounce audio via fluidsynth + GM soundfont instead of the built-in engine")
+    p_remix.add_argument("--stems", action="store_true",
+                         help="Export each layer as its own .wav (for DAW finishing)")
+    p_remix.add_argument("--orchestrate", action="store_true",
+                         help="Use the LLM orchestration pass (instrument selection, mix)")
+    p_remix.add_argument("--orch-plan", default=None,
+                         help="Reuse a saved orchestration JSON (no LLM)")
+    p_remix.add_argument("--save-orch", default=None,
+                         help="Save the orchestration as a reusable preset JSON")
+    p_remix.add_argument("--remeter", action="store_true",
+                         help="Re-meter a 3/4 or 6/8 source into 4/4 before producing")
     p_remix.add_argument("--template-dir", action="append", default=[],
                          help="Extra directory of custom template JSON files")
 
@@ -51,9 +63,12 @@ def main(argv: list[str] | None = None) -> int:
     p_batch.add_argument("--theme", "-t", default=None, help="Brief (LLM/rules run once, on the first input)")
     p_batch.add_argument("--plan", default=None, help="Saved plan JSON to apply to every input (no LLM)")
     p_batch.add_argument("--save-plan", default=None, help="Save the plan created from --theme")
+    p_batch.add_argument("--orch-plan", default=None, help="Saved orchestration JSON applied to every input")
     p_batch.add_argument("--output-dir", "-o", default="produced", help="Output directory")
     p_batch.add_argument("--no-llm", action="store_true")
     p_batch.add_argument("--audio", action="store_true", help="Also bounce WAVs (built-in engine)")
+    p_batch.add_argument("--stems", action="store_true", help="Export per-layer stems for each track")
+    p_batch.add_argument("--remeter", action="store_true", help="Re-meter 3/4 or 6/8 sources to 4/4")
     p_batch.add_argument("--duration", type=float, default=None)
     p_batch.add_argument("--template", default=None)
     p_batch.add_argument("--tempo", type=float, default=None)
@@ -91,35 +106,66 @@ def main(argv: list[str] | None = None) -> int:
 
     # remix
     song = load(args.input)
+    if args.remeter:
+        song = to_four_four(song)
     analysis = analyze(song)
-    print(f"[1/4] Analyzed input: {analysis.key_name}, {analysis.tempo:.0f} BPM, "
+    print(f"[1/5] Analyzed input: {analysis.key_name}, {analysis.tempo:.0f} BPM, "
+          f"{analysis.time_signature[0]}/{analysis.time_signature[1]}, "
           f"{analysis.length_bars} bars, chords {' | '.join(analysis.chord_symbols()[:8])} ...")
 
     plan = _resolve_plan(args, analysis, library, log=True)
-    print("[3/4] Production plan:")
+    print("[3/5] Production plan:")
     print(describe(plan, library))
 
-    out_song = arrange(analysis, plan, library)
+    orch = _resolve_orchestration(args, analysis, plan, log=True)
+
+    out_song = arrange(analysis, plan, library, orch)
     output = Path(args.output) if args.output else Path(args.input).with_name(
         Path(args.input).stem + f".{plan.template}.produced.mid")
     render_midi(out_song, output)
     total_notes = sum(len(t.notes) for t in out_song.tracks)
-    print(f"[4/4] Rendered {len(out_song.tracks)} tracks / {total_notes} notes -> {output}")
+    print(f"[5/5] Rendered {len(out_song.tracks)} tracks / {total_notes} notes -> {output}")
 
+    sd = merged_sound_design(library.get(plan.template).sound_design, orch)
     if args.audio or args.fluidsynth:
         wav_path = output.with_suffix(".wav")
         if args.fluidsynth:
             wav = render_audio(output, wav_path)
-            if wav:
-                print(f"      Audio bounce (fluidsynth) -> {wav}")
-            else:
-                print("      fluidsynth bounce skipped (binary or GM soundfont not found)")
+            print(f"      Audio bounce (fluidsynth) -> {wav}" if wav
+                  else "      fluidsynth bounce skipped (binary or GM soundfont not found)")
         else:
             from .synth_engine import render_wav
-            template = library.get(plan.template)
-            render_wav(out_song, template.sound_design, wav_path)
+            render_wav(out_song, sd, wav_path)
             print(f"      Audio bounce (built-in synth engine) -> {wav_path}")
+    if args.stems:
+        from .synth_engine import render_stems
+        stem_dir = output.with_suffix("")
+        paths = render_stems(out_song, sd, stem_dir)
+        print(f"      Stems ({len(paths)}) -> {stem_dir}/")
     return 0
+
+
+def _resolve_orchestration(args, analysis, plan, log: bool = False):
+    """Orchestration precedence: preset (--orch-plan) > LLM (--orchestrate)
+    > free rule-based default (always on, improves quality at zero cost)."""
+    from .plan_io import load_orchestration, save_orchestration
+
+    if getattr(args, "orch_plan", None):
+        orch = load_orchestration(args.orch_plan, plan)
+        if log:
+            print(f"[4/5] Orchestration: preset {args.orch_plan} (no LLM call)")
+    else:
+        use_llm = getattr(args, "orchestrate", False) and not getattr(args, "no_llm", False)
+        orchestrator = get_orchestrator(use_llm=use_llm)
+        orch = orchestrator.make_orchestration(analysis, plan, getattr(args, "theme", None) or "")
+        if log:
+            kind = type(orchestrator).__name__
+            print(f"[4/5] Orchestration: {kind} | instruments "
+                  + ", ".join(f"{k}={v}" for k, v in orch.instruments.items()))
+    if getattr(args, "save_orch", None):
+        save_orchestration(orch, args.save_orch)
+        print(f"      Orchestration preset saved -> {args.save_orch}")
+    return orch
 
 
 def _resolve_plan(args, analysis, library: TemplateLibrary, log: bool = False):
@@ -159,18 +205,24 @@ def _batch(args, library: TemplateLibrary) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     plan = None
+    orch = None
+    sd = None
     failures = 0
     for i, input_path in enumerate(args.inputs):
         try:
             song = load(input_path)
+            if args.remeter:
+                song = to_four_four(song)
             analysis = analyze(song)
             if plan is None:
-                # one plan for the whole batch: preset file, or one brain call
+                # one plan + one orchestration for the whole batch (≤1 LLM call each)
                 plan = _resolve_plan(args, analysis, library)
+                orch = _resolve_orchestration(args, analysis, plan)
+                sd = merged_sound_design(library.get(plan.template).sound_design, orch)
                 source = f"preset {args.plan}" if args.plan else "theme (single brain call)"
                 print(f"Plan: {plan.title} [{plan.template}, {plan.target_tempo:.0f} BPM, "
                       f"{plan.total_bars} bars] ({source})")
-            out_song = arrange(analysis, plan, library)
+            out_song = arrange(analysis, plan, library, orch)
             stem = Path(input_path).stem
             midi_path = out_dir / f"{stem}.{plan.template}.mid"
             render_midi(out_song, midi_path)
@@ -178,8 +230,12 @@ def _batch(args, library: TemplateLibrary) -> int:
             if args.audio:
                 from .synth_engine import render_wav
                 wav_path = midi_path.with_suffix(".wav")
-                render_wav(out_song, library.get(plan.template).sound_design, wav_path)
+                render_wav(out_song, sd, wav_path)
                 line += f" + {wav_path.name}"
+            if args.stems:
+                from .synth_engine import render_stems
+                render_stems(out_song, sd, out_dir / stem)
+                line += " + stems"
             print(line)
         except Exception as exc:  # keep the batch moving
             failures += 1

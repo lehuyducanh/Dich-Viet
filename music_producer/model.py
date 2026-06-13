@@ -61,6 +61,9 @@ class Song:
     time_signature: tuple[int, int] = (4, 4)
     tracks: list[Track] = field(default_factory=list)
     explicit_chords: list["Chord"] = field(default_factory=list)  # e.g. MusicXML <harmony>
+    # filter-automation segments (start_beat, end_beat, brightness 0-1) for the mix
+    automation: list = field(default_factory=list)
+    master_lufs: float = -10.0   # loudness target for the synth engine's master bus
 
     @property
     def beats_per_bar(self) -> float:
@@ -148,3 +151,18 @@ class ProductionPlan:
     @property
     def total_bars(self) -> int:
         return sum(s.bars for s in self.sections)
+
+
+@dataclass
+class OrchestrationPlan:
+    """Second reasoning pass — the orchestration/mix decisions a producer makes
+    once the structure exists: which instrument plays each layer, how the song
+    varies over time, and how it's mixed. Small JSON, cacheable like a preset."""
+    instruments: dict = field(default_factory=dict)      # layer -> instrument name (catalog)
+    section_filter: list = field(default_factory=list)   # brightness 0-1 per section
+    fills_every: int = 8        # drum-fill cadence in bars (0 = off)
+    final_lift: int = 0         # semitone key change on the last peak section (0-4)
+    melody_variation: bool = True
+    master_lufs: float = -10.0  # loudness target (approx LUFS) for the master
+    notes: str = ""
+

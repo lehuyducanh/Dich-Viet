@@ -6,9 +6,14 @@ No soundfont, no DAW, no external binaries — just numpy DSP:
   - synthesized drums (kick = pitched sine sweep, snare/clap/hats = shaped
     noise, toms, crash, ride, shaker) with per-hit caching
   - tempo-synced sidechain ducking driven by the actual kick pattern
+  - filter automation: per-section brightness sweeps (dark/bright blend),
+    builds ramping the filter open into the drop
   - tempo-synced feedback delay, FFT-convolution reverb bus
+  - mix layer: per-track low/high shelf EQ, master bus compression,
+    loudness normalization to a target (approx LUFS)
   - optional lo-fi master treatment (vinyl crackle + tone rolloff)
   - soft-saturation master limiter, 16-bit stereo WAV out
+  - stem export: each layer to its own WAV for DAW finishing
 
 Everything is vectorized; a full 80-bar track renders in seconds.
 """
@@ -26,6 +31,26 @@ from .sound_design import Patch, master_options, patch_for
 SR = 44100
 
 
+def _render_track(track: Track, sound_design: dict | None, sr: int, spb: float,
+                  n: int, duck: np.ndarray, bright_env: np.ndarray | None) -> tuple[np.ndarray, np.ndarray, Patch]:
+    """Render one track through its full per-track chain. Returns
+    (buffer, reverb_send, patch) — buffer is pre-gain, pre-master."""
+    patch = patch_for(track.name if not track.is_drums else "drums", sound_design)
+    if track.is_drums:
+        buf = _render_drums(track, sr, spb, n)
+    else:
+        buf = _render_synth(track, patch, sr, spb, n,
+                            bright_env if patch.automate else None)
+        if patch.delay > 0:
+            buf += patch.delay * _delay(buf, sr, spb)
+        if patch.sidechain > 0:
+            buf *= 1.0 - patch.sidechain * duck
+    if patch.eq_low or patch.eq_high:
+        buf = _eq(buf, sr, patch.eq_low, patch.eq_high)
+    reverb_send = patch.reverb * buf if patch.reverb > 0 else None
+    return buf, reverb_send, patch
+
+
 def render_wav(song: Song, sound_design: dict | None, path: str | Path,
                sr: int = SR, tail: float = 2.5) -> Path:
     path = Path(path)
@@ -35,40 +60,64 @@ def render_wav(song: Song, sound_design: dict | None, path: str | Path,
     reverb_bus = np.zeros((2, n), dtype=np.float64)
 
     duck = _duck_curve(song, sr, spb, n)
+    bright_env = _bright_env(song, sr, spb, n)
 
     for track in song.tracks:
-        patch = patch_for(track.name if not track.is_drums else "drums", sound_design)
-        if track.is_drums:
-            buf = _render_drums(track, sr, spb, n)
-        else:
-            buf = _render_synth(track, patch, sr, spb, n)
-            if patch.delay > 0:
-                buf += patch.delay * _delay(buf, sr, spb)
-            if patch.sidechain > 0:
-                buf *= 1.0 - patch.sidechain * duck
-        if patch.reverb > 0:
-            reverb_bus += patch.reverb * buf
+        buf, reverb_send, patch = _render_track(track, sound_design, sr, spb, n, duck, bright_env)
+        if reverb_send is not None:
+            reverb_bus += reverb_send
         master += patch.gain * buf
 
     master += 0.7 * _reverb(reverb_bus, sr)
+    master = _master_chain(master, song, sound_design, sr, n)
+    _write_wav(path, master, sr)
+    return path
 
+
+def render_stems(song: Song, sound_design: dict | None, out_dir: str | Path,
+                 sr: int = SR, tail: float = 2.5) -> list[Path]:
+    """Render each layer to its own WAV (with its per-track FX + a light
+    normalize), so the arrangement can be finished/mixed in a DAW."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    spb = 60.0 / song.tempo
+    n = int((song.length_beats * spb + tail) * sr)
+    duck = _duck_curve(song, sr, spb, n)
+    bright_env = _bright_env(song, sr, spb, n)
+
+    paths: list[Path] = []
+    for track in song.tracks:
+        buf, reverb_send, patch = _render_track(track, sound_design, sr, spb, n, duck, bright_env)
+        stem = patch.gain * buf
+        if reverb_send is not None:
+            stem += 0.7 * _reverb(reverb_send, sr)
+        peak = np.max(np.abs(stem)) or 1.0
+        stem = stem / peak * 0.89          # normalize headroom, no master glue
+        p = out_dir / f"{track.name}.wav"
+        _write_wav(p, stem, sr)
+        paths.append(p)
+    return paths
+
+
+def _master_chain(master: np.ndarray, song: Song, sound_design: dict | None,
+                  sr: int, n: int) -> np.ndarray:
     opts = master_options(sound_design)
     if opts.get("cutoff"):
         master = _fir_lowpass(master, float(opts["cutoff"]), sr)
     if opts.get("vinyl"):
         master += float(opts["vinyl"]) * _vinyl_crackle(n, sr)
 
-    # soft-knee limiter + normalize
-    peak = np.max(np.abs(master)) or 1.0
-    master = np.tanh(master / peak * 1.4) / np.tanh(1.4)
-
-    _write_wav(path, master, sr)
-    return path
+    master = _compress(master, threshold=0.5, ratio=3.0)       # glue bus compression
+    master = _loudness_normalize(master, getattr(song, "master_lufs", -10.0))
+    # soft-knee limiter (brick-wall-ish) to catch peaks after make-up gain
+    master = np.tanh(master * 1.1) / np.tanh(1.1)
+    return master
 
 
 # --- synth voices ---------------------------------------------------------------
 
-def _render_synth(track: Track, patch: Patch, sr: int, spb: float, n: int) -> np.ndarray:
+def _render_synth(track: Track, patch: Patch, sr: int, spb: float, n: int,
+                  bright_env: np.ndarray | None = None) -> np.ndarray:
     mono = np.zeros(n, dtype=np.float64)
     rng = np.random.default_rng(abs(hash(track.name)) % (2 ** 31))
     # fixed unison detune offsets per track so the timbre is stable
@@ -113,7 +162,15 @@ def _render_synth(track: Track, patch: Patch, sr: int, spb: float, n: int) -> np
         env = _adsr(length, int(dur_s * sr), patch, sr)
         mono[start:start + length] += sig * env * (note.velocity / 127.0)
 
-    mono = _fir_lowpass(mono[None, :], patch.cutoff, sr)[0]
+    if bright_env is not None:
+        # filter automation: blend a dark and a bright version of the signal by
+        # the per-sample brightness envelope (cheap time-varying lowpass)
+        dark = _fir_lowpass(mono[None, :], max(300.0, patch.cutoff * 0.16), sr)[0]
+        bright = _fir_lowpass(mono[None, :], patch.cutoff, sr)[0]
+        b = bright_env[:len(mono)]
+        mono = dark * (1.0 - b) + bright * b
+    else:
+        mono = _fir_lowpass(mono[None, :], patch.cutoff, sr)[0]
 
     # constant-power pan + Haas-delay stereo width
     theta = (patch.pan + 1) * np.pi / 4
@@ -256,6 +313,68 @@ def _duck_curve(song: Song, sr: int, spb: float, n: int) -> np.ndarray:
     return duck
 
 
+def _bright_env(song: Song, sr: int, spb: float, n: int) -> np.ndarray | None:
+    """Per-sample brightness 0-1 from the song's filter automation segments.
+    'ramp' segments rise across the section (filter opening into a drop)."""
+    if not getattr(song, "automation", None):
+        return None
+    env = np.full(n, 0.7)
+    for start_beat, end_beat, spec in song.automation:
+        s = int(start_beat * spb * sr)
+        e = min(int(end_beat * spb * sr), n)
+        if e <= s:
+            continue
+        kind, lo, hi = spec
+        if kind == "ramp":
+            env[s:e] = np.linspace(lo, hi, e - s)
+        else:
+            env[s:e] = hi
+    # smooth the segment boundaries so the filter glides rather than steps
+    win = max(1, int(0.05 * sr))
+    if win > 1:
+        kernel = np.ones(win) / win
+        env = np.convolve(env, kernel, mode="same")
+    return np.clip(env, 0.0, 1.0)
+
+
+def _eq(buf: np.ndarray, sr: int, low_db: float, high_db: float) -> np.ndarray:
+    """Cheap low/high shelving EQ: add a filtered copy scaled by the gain."""
+    out = buf
+    if low_db:
+        low = _fir_lowpass(buf, 250.0, sr)
+        out = out + (10 ** (low_db / 20.0) - 1.0) * low
+    if high_db:
+        high = buf - _fir_lowpass(buf, 4000.0, sr)
+        out = out + (10 ** (high_db / 20.0) - 1.0) * high
+    return out
+
+
+def _compress(buf: np.ndarray, threshold: float = 0.5, ratio: float = 3.0,
+              window: float = 0.10, sr: int = SR) -> np.ndarray:
+    """Mono-linked bus compressor for master glue. The level detector is a
+    windowed RMS (vectorized) — no per-sample Python loop."""
+    mono = np.max(np.abs(buf), axis=0)
+    win = max(1, int(window * sr))
+    # windowed RMS via prefix sums — O(n), no giant convolution kernel
+    sq = mono ** 2
+    csum = np.concatenate([[0.0], np.cumsum(sq)])
+    half = win // 2
+    lo = np.clip(np.arange(len(mono)) - half, 0, len(mono))
+    hi = np.clip(np.arange(len(mono)) + half + 1, 0, len(mono))
+    env = np.sqrt((csum[hi] - csum[lo]) / np.maximum(hi - lo, 1)) + 1e-9
+    gain = np.where(env > threshold,
+                    (threshold + (env - threshold) / ratio) / env, 1.0)
+    return buf * gain
+
+
+def _loudness_normalize(buf: np.ndarray, target_lufs: float) -> np.ndarray:
+    """Scale toward a target loudness (approx LUFS via integrated RMS)."""
+    rms = np.sqrt(np.mean(buf ** 2)) or 1e-9
+    target_rms = 10 ** (target_lufs / 20.0)
+    gain = min(target_rms / rms, 8.0)      # cap make-up gain; the limiter follows
+    return buf * gain
+
+
 def _delay(buf: np.ndarray, sr: int, spb: float, feedback: float = 0.42) -> np.ndarray:
     d = int(0.75 * spb * sr)                # dotted-eighth delay
     out = np.zeros_like(buf)
@@ -309,6 +428,7 @@ def _vinyl_crackle(n: int, sr: int) -> np.ndarray:
 # --- primitives -----------------------------------------------------------------
 
 _kernel_cache: dict[int, np.ndarray] = {}
+_kspec_cache: dict[tuple[int, int], np.ndarray] = {}
 
 
 def _fir_lowpass(buf: np.ndarray, cutoff: float, sr: int, taps: int = 63) -> np.ndarray:
@@ -319,7 +439,24 @@ def _fir_lowpass(buf: np.ndarray, cutoff: float, sr: int, taps: int = 63) -> np.
         h = np.sinc(2 * cutoff / sr * m) * np.hamming(taps)
         _kernel_cache[key] = h / h.sum()
     h = _kernel_cache[key]
-    return np.stack([np.convolve(ch, h, mode="same") for ch in buf])
+    nlen = buf.shape[1]
+    if nlen < 4 * taps:                      # short buffers: direct convolution
+        return np.stack([np.convolve(ch, h, mode="same") for ch in buf])
+
+    # long buffers: FFT convolution (orders of magnitude faster on full tracks)
+    size = 1
+    while size < nlen + taps - 1:
+        size <<= 1
+    spec_key = (key, size)
+    if spec_key not in _kspec_cache:
+        _kspec_cache[spec_key] = np.fft.rfft(h, size)
+    hspec = _kspec_cache[spec_key]
+    pad = (taps - 1) // 2
+    out = np.empty_like(buf)
+    for ch in range(buf.shape[0]):
+        full = np.fft.irfft(np.fft.rfft(buf[ch], size) * hspec, size)
+        out[ch] = full[pad:pad + nlen]
+    return out
 
 
 def _write_wav(path: Path, stereo: np.ndarray, sr: int) -> None:
