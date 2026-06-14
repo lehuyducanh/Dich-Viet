@@ -57,6 +57,12 @@ music2midi pipeline song.mp3 -o song.mp4
 # Sinh bài hát mới bằng Claude
 music2midi generate "nhạc bolero buồn, piano và guitar, 80 bpm" -o song.mid --render-video
 
+# Sinh theo phong cách định sẵn (24 preset: dân ca Nga, nhạc cổ Trung Quốc,
+# EDM, lo-fi, epic cinematic, lãng mạn cổ điển, jazz, flamenco, ...)
+music2midi styles                         # liệt kê tất cả phong cách
+music2midi generate "một giai điệu buồn" --style chinese_classical -o song.mid --render-video
+# Phong cách cũng được tự nhận từ mô tả: "nhạc dân ca Nga vui" -> russian_folk
+
 # Bài demo built-in để thử nhanh
 music2midi demo -o demo.mid
 music2midi visualize demo.mid -o demo.mp4

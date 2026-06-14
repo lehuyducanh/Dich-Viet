@@ -17,6 +17,7 @@ import anthropic
 from .. import config
 from ..midi.model import Song
 from .prompts import SYSTEM_PROMPT, build_user_prompt
+from .styles import StylePreset, detect_style, get_style
 
 
 class GenerationError(RuntimeError):
@@ -44,10 +45,22 @@ def _parse_song(text: str) -> Song:
     return Song.model_validate(data).cleaned()
 
 
-def generate_song(prompt: str, bars: int = 16, model: str = config.DEFAULT_MODEL) -> Song:
+def resolve_style(prompt: str, explicit: str | None) -> StylePreset | None:
+    """Pick a style: explicit `--style` wins, else detect from the prompt text."""
+    if explicit:
+        return get_style(explicit)
+    return detect_style(prompt)
+
+
+def generate_song(
+    prompt: str,
+    bars: int = 16,
+    model: str = config.DEFAULT_MODEL,
+    style: StylePreset | None = None,
+) -> Song:
     _require_api_key()
     client = anthropic.Anthropic()
-    user_prompt = build_user_prompt(prompt, bars)
+    user_prompt = build_user_prompt(prompt, bars, style=style)
 
     # First attempt: structured outputs — the SDK validates against Song.
     try:
@@ -82,7 +95,7 @@ def generate_song(prompt: str, bars: int = 16, model: str = config.DEFAULT_MODEL
                 "content": (
                     "Your previous output failed validation with this error:\n"
                     f"{first_error}\n\nPrevious output:\n{raw[:8000]}\n\n"
-                    "Return the corrected song JSON only."
+                    "Return the corrected song JSON only, keeping the requested style."
                 ),
             },
         ],

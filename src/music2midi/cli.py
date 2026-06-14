@@ -58,6 +58,9 @@ def visualize(
     colors: Optional[str] = typer.Option(
         None, help='Comma-separated hex colors per track, e.g. "#4FC3F7,#81C784".'
     ),
+    style: Optional[str] = typer.Option(
+        None, "--style", help="Use a style preset's color palette (see `music2midi styles`)."
+    ),
     lookahead: float = typer.Option(
         config.DEFAULT_LOOKAHEAD_S, help="Seconds of upcoming notes visible above the keyboard."
     ),
@@ -76,6 +79,14 @@ def visualize(
         typer.secho(f"Invalid --resolution '{resolution}', expected WIDTHxHEIGHT.", fg="red")
         raise typer.Exit(code=2)
     palette = config.DEFAULT_PALETTE
+    if style:
+        from .generate.styles import get_style
+
+        try:
+            palette = list(get_style(style).palette)
+        except KeyError as exc:
+            typer.secho(str(exc), fg="red")
+            raise typer.Exit(code=2)
     if colors:
         palette = [c.strip() for c in colors.split(",") if c.strip()]
 
@@ -99,6 +110,9 @@ def generate(
     prompt: str = typer.Argument(..., help="Song description (Vietnamese or English)."),
     output: Path = typer.Option(Path("song.mid"), "--output", "-o", help="Output MIDI path."),
     bars: int = typer.Option(16, min=1, max=config.MAX_BARS, help="Approximate song length in bars."),
+    style: Optional[str] = typer.Option(
+        None, "--style", help="Style preset id (see `music2midi styles`); auto-detected if omitted."
+    ),
     model: str = typer.Option(config.DEFAULT_MODEL, help="Anthropic model ID."),
     render_video: bool = typer.Option(
         False, "--render-video", help="Also render a piano video next to the MIDI file."
@@ -108,9 +122,17 @@ def generate(
     ),
 ) -> None:
     """Generate a new song from a text description using Claude."""
-    from .generate.llm import generate_song
+    from .generate.llm import generate_song, resolve_style
 
-    song = generate_song(prompt=prompt, bars=bars, model=model)
+    try:
+        preset = resolve_style(prompt, style)
+    except KeyError as exc:
+        typer.secho(str(exc), fg="red")
+        raise typer.Exit(code=2)
+    if preset is not None:
+        typer.echo(f"Style: {preset.name}")
+
+    song = generate_song(prompt=prompt, bars=bars, model=model, style=preset)
     song.save_midi(output)
     typer.echo(f"Wrote '{song.title}' ({len(song.tracks)} tracks) to {output}")
 
@@ -123,8 +145,33 @@ def generate(
         from .visualize.renderer import render_video as _render
 
         video_path = output.with_suffix(".mp4")
-        _render(midi_path=output, output_path=video_path)
+        _render(
+            midi_path=output,
+            output_path=video_path,
+            palette=list(preset.palette) if preset else None,
+        )
         typer.echo(f"Wrote video to {video_path}")
+
+
+@app.command()
+def styles(
+    group: Optional[str] = typer.Option(None, help="Filter by group (e.g. 'Electronic')."),
+) -> None:
+    """List the available instrumental style presets."""
+    from .generate.styles import list_styles
+
+    current = None
+    for preset in list_styles():
+        if group and group.lower() not in preset.group.lower():
+            continue
+        if preset.group != current:
+            current = preset.group
+            typer.secho(f"\n{current}", fg="cyan", bold=True)
+        lead = preset.instruments[0][0]
+        typer.echo(
+            f"  {preset.id:20s} {preset.name}\n"
+            f"  {'':20s} {preset.scale}, ~{preset.default_tempo} bpm, lead: {lead}"
+        )
 
 
 @app.command()

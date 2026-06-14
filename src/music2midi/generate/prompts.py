@@ -1,6 +1,7 @@
 """System prompt for LLM song generation."""
 
 from .. import config
+from .styles import StylePreset
 
 SYSTEM_PROMPT = """You are an expert composer and arranger. You write complete, \
 musically coherent multi-track songs as structured JSON matching the schema you \
@@ -31,8 +32,13 @@ Respond with the song JSON only.
 """.format(max_notes=config.MAX_NOTES)
 
 
-def build_user_prompt(prompt: str, bars: int) -> str:
-    return (
-        f"Compose a song of about {bars} bars (4/4 unless the description implies "
-        f"otherwise) based on this description:\n\n{prompt}"
-    )
+def build_user_prompt(prompt: str, bars: int, style: StylePreset | None = None) -> str:
+    parts = [
+        f"Compose a song of about {bars} bars (4/4 unless the description or style "
+        f"implies otherwise) based on this description:\n\n{prompt}"
+    ]
+    if style is not None:
+        parts.append(
+            "\nFollow this style profile closely:\n\n" + style.prompt_block()
+        )
+    return "\n".join(parts)
